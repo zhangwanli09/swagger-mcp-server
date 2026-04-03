@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { networkInterfaces } from "os";
 import express from "express";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
@@ -28,7 +29,17 @@ app.get("/health", (_req, res) => {
   res.json({ status: "ok" });
 });
 
+function getLocalIP() {
+  for (const iface of Object.values(networkInterfaces())) {
+    for (const net of iface ?? []) {
+      if (net.family === "IPv4" && !net.internal) return net.address;
+    }
+  }
+  return "127.0.0.1";
+}
+
 app.listen(PORT, "0.0.0.0", () => {
-  console.error(`Swagger MCP Server (HTTP) listening on http://0.0.0.0:${PORT}/mcp`);
-  console.error(`Health check: http://0.0.0.0:${PORT}/health`);
+  const ip = getLocalIP();
+  console.error(`Swagger MCP Server (HTTP) listening on http://${ip}:${PORT}/mcp`);
+  console.error(`Health check: http://${ip}:${PORT}/health`);
 });
