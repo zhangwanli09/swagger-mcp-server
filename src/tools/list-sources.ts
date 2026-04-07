@@ -29,10 +29,9 @@ export function registerListSources(server: McpServer): void {
       try {
         const cfg = getAllSources();
         const cacheMinutes = cfg.cacheMinutes ?? DEFAULT_CACHE_MINUTES;
-        const statuses = getCacheStatus();
-
-        // Try to load all (uses cache if available)
+        // Load first so cache is populated before getCacheStatus() reads it
         const sources = await loadAllSources(false);
+        const statuses = getCacheStatus();
 
         const lines: string[] = ["# 已配置的 Swagger 文档源\n"];
         for (const src of sources) {
