@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getAllSources, getCacheStatus, loadAllSources } from "../services/swagger-client.js";
+import { getCacheStatus, loadAllSources } from "../services/swagger-client.js";
 import { DEFAULT_CACHE_MINUTES } from "../constants.js";
 
 export function registerListSources(server: McpServer): void {
@@ -27,8 +27,6 @@ export function registerListSources(server: McpServer): void {
     },
     async () => {
       try {
-        const cfg = getAllSources();
-        const cacheMinutes = cfg.cacheMinutes ?? DEFAULT_CACHE_MINUTES;
         // Load first so cache is populated before getCacheStatus() reads it
         const sources = await loadAllSources(false);
         const statuses = getCacheStatus();
@@ -45,7 +43,7 @@ export function registerListSources(server: McpServer): void {
           lines.push(`- **状态**: ${src.data.projectInfo.projectStatusName ?? "未知"}`);
           lines.push(`- **接口总数**: ${totalInterfaces}`);
           lines.push(`- **缓存时间**: ${src.fetchedAt.toLocaleString("zh-CN")}`);
-          lines.push(`- **缓存有效期**: ${cacheMinutes} 分钟`);
+          lines.push(`- **缓存有效期**: ${DEFAULT_CACHE_MINUTES} 分钟`);
           if (modules) lines.push(`- **模块**: ${modules}`);
           lines.push("");
         }

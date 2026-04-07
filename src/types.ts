@@ -115,14 +115,6 @@ export interface ApiResponse {
   data: ApiResponseData;
 }
 
-export interface SwaggerSourceConfig {
-  webUrl: string;
-}
-
-export interface SourcesConfig {
-  sources: SwaggerSourceConfig[];
-  cacheMinutes?: number;
-}
 
 export interface CachedSource {
   name: string;

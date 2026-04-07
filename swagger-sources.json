@@ -1,14 +1,5 @@
-{
-  "sources": [
-    {
-      "webUrl": "http://172.16.101.121:8112/?redirect=/login#/swaggerManage?fs-tenant=null&uid=69b761931f101e42e09fd998&formShare=0"
-    },
-    {
-      "webUrl": "http://172.16.101.121:8112/?redirect=/login#/swaggerManage?fs-tenant=null&uid=69b7618c1f101e42e09fd994&formShare=0"
-    },
-    {
-      "webUrl": "http://172.16.101.121:8112/?redirect=/login#/swaggerManage?fs-tenant=null&uid=69b761871f101e42e09fd990&formShare=0"
-    }
-  ],
-  "cacheMinutes": 30
-}
+[
+  "http://172.16.101.121:8112/?redirect=/login#/swaggerManage?fs-tenant=null&uid=69b761931f101e42e09fd998&formShare=0",
+  "http://172.16.101.121:8112/?redirect=/login#/swaggerManage?fs-tenant=null&uid=69b7618c1f101e42e09fd994&formShare=0",
+  "http://172.16.101.121:8112/?redirect=/login#/swaggerManage?fs-tenant=null&uid=69b761871f101e42e09fd990&formShare=0"
+]

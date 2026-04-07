@@ -34,18 +34,12 @@ npm install && npm run build
 编辑 `swagger-sources.json`：
 
 ```json
-{
-  "sources": [
-    {
-      "webUrl": "http://your-server/...#/swaggerManage?uid=xxx"
-    }
-  ],
-  "cacheMinutes": 30
-}
+[
+  "http://your-server/...#/swaggerManage?uid=xxx"
+]
 ```
 
-- `webUrl`：Swagger 平台浏览器地址（含 `uid` 参数）
-- `cacheMinutes`（可选）：缓存有效期，默认 30 分钟
+填入 Swagger 平台浏览器地址（含 `uid` 参数），支持配置多个。缓存有效期固定为 30 分钟。
 
 ## 接入
 

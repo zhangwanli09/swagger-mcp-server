@@ -5,8 +5,6 @@ import type {
   ApiResponse,
   ApiResponseData,
   CachedSource,
-  SourcesConfig,
-  SwaggerSourceConfig,
 } from "../types.js";
 import { DEFAULT_CACHE_MINUTES, FIXED_HEADERS, REQUEST_TIMEOUT_MS } from "../constants.js";
 
@@ -16,12 +14,12 @@ const SOURCES_CONFIG_PATH = resolve(__dirname, "../../swagger-sources.json");
 // In-memory cache: sourceName -> CachedSource
 const cache = new Map<string, CachedSource>();
 
-let config: SourcesConfig | null = null;
+let config: string[] | null = null;
 
-function loadConfig(): SourcesConfig {
+function loadConfig(): string[] {
   if (config) return config;
   const raw = readFileSync(SOURCES_CONFIG_PATH, "utf-8");
-  config = JSON.parse(raw) as SourcesConfig;
+  config = JSON.parse(raw) as string[];
   return config;
 }
 
@@ -53,8 +51,8 @@ export function parseWebUrl(webUrl: string): string {
   return `${base}/flow/swagger/share?uid=${uid}&fs-tenant=${encodeURIComponent(fsTenant)}`;
 }
 
-async function fetchSource(src: SwaggerSourceConfig): Promise<CachedSource> {
-  const apiUrl = parseWebUrl(src.webUrl);
+async function fetchSource(url: string): Promise<CachedSource> {
+  const apiUrl = parseWebUrl(url);
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
@@ -67,14 +65,14 @@ async function fetchSource(src: SwaggerSourceConfig): Promise<CachedSource> {
     });
     clearTimeout(timeoutId);
     if (!res.ok) {
-      throw new Error(`HTTP ${res.status} fetching swagger for "${src.webUrl}"`);
+      throw new Error(`HTTP ${res.status} fetching swagger for "${url}"`);
     }
     response = (await res.json()) as ApiResponse;
   } catch (err) {
     clearTimeout(timeoutId);
     if (err instanceof Error) {
       if (err.name === "AbortError") {
-        throw new Error(`Request timeout fetching swagger for "${src.webUrl}"`);
+        throw new Error(`Request timeout fetching swagger for "${url}"`);
       }
       throw new Error(`Network error fetching swagger: ${err.message}`);
     }
@@ -103,33 +101,27 @@ function isCacheValid(cached: CachedSource, cacheMinutes: number): boolean {
 }
 
 export async function getSource(
-  src: SwaggerSourceConfig,
+  url: string,
   cacheMinutes: number,
   forceRefresh = false
 ): Promise<CachedSource> {
-  const tempName = src.webUrl;
-  const cached = cache.get(tempName);
+  const cached = cache.get(url);
 
   if (!forceRefresh && cached && isCacheValid(cached, cacheMinutes)) {
     return cached;
   }
 
-  const fresh = await fetchSource(src);
+  const fresh = await fetchSource(url);
   // Use real name as cache key after fetch
   cache.set(fresh.name, fresh);
-  // Also index by webUrl in case name changes
-  cache.set(tempName, fresh);
+  // Also index by url in case name changes
+  cache.set(url, fresh);
   return fresh;
 }
 
-export function getAllSources(): SourcesConfig {
-  return loadConfig();
-}
-
 export async function loadAllSources(forceRefresh = false): Promise<CachedSource[]> {
-  const cfg = loadConfig();
-  const cacheMinutes = cfg.cacheMinutes ?? DEFAULT_CACHE_MINUTES;
-  return Promise.all(cfg.sources.map((src) => getSource(src, cacheMinutes, forceRefresh)));
+  const urls = loadConfig();
+  return Promise.all(urls.map((url) => getSource(url, DEFAULT_CACHE_MINUTES, forceRefresh)));
 }
 
 export async function loadSourceByName(
@@ -144,14 +136,13 @@ export function getCacheStatus(): Array<{
   fetchedAt: Date | null;
   apiUrl: string;
 }> {
-  const cfg = loadConfig();
-  return cfg.sources.map((src) => {
-    const tempName = src.webUrl;
-    const cached = cache.get(tempName);
+  const urls = loadConfig();
+  return urls.map((url) => {
+    const cached = cache.get(url);
     return {
-      name: cached?.name ?? tempName,
+      name: cached?.name ?? url,
       fetchedAt: cached?.fetchedAt ?? null,
-      apiUrl: cached?.apiUrl ?? parseWebUrl(src.webUrl),
+      apiUrl: cached?.apiUrl ?? parseWebUrl(url),
     };
   });
 }
