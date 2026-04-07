@@ -1,11 +1,16 @@
 export interface Param {
-  paramId?: string;
   paramName: string;
-  paramType?: string;
+  paramType?: string;       // 字符串数字 ID，如 '0'='String', '16'='Object'
   description?: string;
-  required?: boolean | number;
+  checkType?: number;       // 1=必填, 2=可选
+  isList?: boolean;         // 是否为数组
+  children?: Param[];       // Object 类型的嵌套字段
   defaultValue?: string;
   example?: string;
+  fileType?: string;
+  resultMsg?: string;
+  paramPosition?: number;
+  paramOrigin?: number;
 }
 
 export interface InParamModelData {
@@ -17,6 +22,41 @@ export interface InParamModelData {
   binaryMessage?: unknown[];
 }
 
+export interface OutputResultItem {
+  parameterName: string;
+  dataType: string;         // Java 类型，如 'java.lang.String'
+  content: string;
+  isDynamic: number;
+  children: OutputResultItem[];
+}
+
+export interface OutResultItem {
+  resultValueId: string;
+  outResultDemo: string;    // JSON 字符串
+  outResultParams: unknown[];
+  outResultComponentInfo: {
+    resourceId: string;
+    name: string;
+    describe: string;
+  };
+  outputResultInfo: {
+    resultName: string;
+    resultTypeName: string; // 如 'application/json'
+    items: OutputResultItem[];
+  };
+}
+
+export interface MockResultField {
+  name: string;
+  type: string;             // Java 类型，如 'java.lang.String'
+  description: string;
+  isList: boolean;
+  defaultValue?: string;
+  fieldTypeOriginEnum: string;
+  typeOrigin: number;
+  children?: MockResultField[];
+}
+
 export interface InterfaceInfo {
   interfaceId: string;
   interfaceName: string;
@@ -26,12 +66,18 @@ export interface InterfaceInfo {
   httpProtocolName?: string;
   interfaceStatusName: string;
   interfaceContentType?: string;
+  interfaceVersion?: number;
+  isMock?: number;
+  modelId?: string;
   inParamModelData: InParamModelData;
   inParams?: Param[];
-  outResults?: unknown[];
-  mockReturnResultExample?: unknown[];
+  outResults?: OutResultItem[];
+  mockReturnResultExample?: MockResultField[];
   bodyRequestDemo?: string;
-  isMock?: number;
+  gmtCreate?: string;
+  gmtModified?: string;
+  createUserName?: string;
+  modifiedUserName?: string;
 }
 
 export interface Module {
@@ -47,10 +93,19 @@ export interface ProjectInfo {
   projectStatusName?: string;
 }
 
+export interface DictItem {
+  dictNo: number;
+  dictValue: string;
+  dictValueDescription: string;
+}
+
 export interface ApiResponseData {
   projectInfo: ProjectInfo;
   modules: Module[];
-  dict?: Record<string, unknown[]>;
+  dict?: {
+    inparam_data_type?: DictItem[];
+    [key: string]: unknown[] | undefined;
+  };
 }
 
 export interface ApiResponse {

@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { loadAllSources, loadSourceByName } from "../services/swagger-client.js";
-import type { InterfaceInfo, Param } from "../types.js";
+import type { InterfaceInfo, MockResultField, OutputResultItem, Param } from "../types.js";
 
 const GetDetailInputSchema = z.object({
   source: z
@@ -17,20 +17,62 @@ const GetDetailInputSchema = z.object({
 
 type GetDetailInput = z.infer<typeof GetDetailInputSchema>;
 
-function formatParams(params: Param[], label: string): string[] {
-  if (!params || params.length === 0) return [];
-  const lines: string[] = [`**${label}参数**:`, ""];
-  lines.push("| 参数名 | 类型 | 必填 | 描述 | 示例 |");
-  lines.push("|--------|------|------|------|------|");
-  for (const p of params) {
-    const required = p.required ? "是" : "否";
-    const type = p.paramType ?? "-";
-    const desc = (p.description ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
-    const example = (p.example ?? p.defaultValue ?? "").replace(/\|/g, "\\|");
-    lines.push(`| ${p.paramName} | ${type} | ${required} | ${desc} | ${example} |`);
+function resolveType(paramType: string | undefined, isList: boolean | undefined, typeMap: Map<string, string>): string {
+  if (!paramType && paramType !== "0") return "-";
+  const name = typeMap.get(paramType) ?? paramType;
+  return isList ? `${name}[]` : name;
+}
+
+function formatParams(
+  params: Param[],
+  label: string,
+  typeMap: Map<string, string>,
+  lines: string[],
+  depth = 0
+): void {
+  if (!params || params.length === 0) return;
+  const prefix = "  ".repeat(depth);
+  if (depth === 0) {
+    lines.push(`**${label}参数**:`, "");
+    lines.push("| 参数名 | 类型 | 必填 | 描述 |");
+    lines.push("|--------|------|------|------|");
   }
-  lines.push("");
-  return lines;
+  for (const p of params) {
+    const required = p.checkType === 1 ? "是" : "否";
+    const typeStr = resolveType(p.paramType, p.isList, typeMap);
+    const desc = (p.description ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+    lines.push(`| ${prefix}${p.paramName} | ${typeStr} | ${required} | ${desc} |`);
+    if (p.children && p.children.length > 0) {
+      formatParams(p.children, label, typeMap, lines, depth + 1);
+    }
+  }
+  if (depth === 0) lines.push("");
+}
+
+function formatMockFields(fields: MockResultField[], lines: string[], depth = 0): void {
+  const prefix = "  ".repeat(depth);
+  for (const f of fields) {
+    const typeName = f.type.split(".").pop() ?? f.type;
+    const typeStr = f.isList ? `${typeName}[]` : typeName;
+    const desc = (f.description ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+    const defVal = (f.defaultValue ?? "").replace(/\|/g, "\\|");
+    lines.push(`| ${prefix}${f.name} | ${typeStr} | ${desc} | ${defVal} |`);
+    if (f.children && f.children.length > 0) {
+      formatMockFields(f.children, lines, depth + 1);
+    }
+  }
+}
+
+function renderOutputItems(items: OutputResultItem[], lines: string[], depth = 0): void {
+  const prefix = "  ".repeat(depth);
+  for (const item of items) {
+    const typeName = item.dataType.split(".").pop() ?? item.dataType;
+    const desc = (item.content ?? "").replace(/\|/g, "\\|").replace(/\n/g, " ");
+    lines.push(`| ${prefix}${item.parameterName} | ${typeName} | ${desc} |`);
+    if (item.children && item.children.length > 0) {
+      renderOutputItems(item.children, lines, depth + 1);
+    }
+  }
 }
 
 export function registerGetApiDetail(server: McpServer): void {
@@ -48,8 +90,9 @@ export function registerGetApiDetail(server: McpServer): void {
 返回内容:
 - 接口基本信息（名称、描述、状态、Content-Type）
 - Query/Path/Header/Form/Body 各类参数的完整定义（参数名、类型、是否必填、描述）
-- Mock 响应示例
-- 请求 Body 示例`,
+- 嵌套 Object 参数的子字段
+- 响应结果（Demo JSON + 输出字段表格）
+- Mock 响应字段表格`,
       inputSchema: GetDetailInputSchema,
       annotations: {
         readOnlyHint: true,
@@ -71,6 +114,7 @@ export function registerGetApiDetail(server: McpServer): void {
         let found: InterfaceInfo | undefined;
         let foundSourceName = "";
         let foundModuleName = "";
+        let typeMap = new Map<string, string>();
 
         outer: for (const src of sources) {
           for (const mod of src.data.modules) {
@@ -82,6 +126,10 @@ export function registerGetApiDetail(server: McpServer): void {
                 found = iface;
                 foundSourceName = src.name;
                 foundModuleName = mod.moduleName;
+                // Build type lookup map from dict
+                for (const entry of src.data.dict?.inparam_data_type ?? []) {
+                  typeMap.set(String(entry.dictNo), entry.dictValueDescription);
+                }
                 break outer;
               }
             }
@@ -123,11 +171,11 @@ export function registerGetApiDetail(server: McpServer): void {
 
         // Parameters
         if (pm) {
-          lines.push(...formatParams(pm.queryParam, "Query "));
-          lines.push(...formatParams(pm.pathParam, "Path "));
-          lines.push(...formatParams(pm.headerParam, "Header "));
-          lines.push(...formatParams(pm.formParam, "Form "));
-          lines.push(...formatParams(pm.bodyParam, "Body "));
+          formatParams(pm.queryParam, "Query ", typeMap, lines);
+          formatParams(pm.pathParam, "Path ", typeMap, lines);
+          formatParams(pm.headerParam, "Header ", typeMap, lines);
+          formatParams(pm.formParam, "Form ", typeMap, lines);
+          formatParams(pm.bodyParam, "Body ", typeMap, lines);
         }
 
         // Request body demo
@@ -143,12 +191,38 @@ export function registerGetApiDetail(server: McpServer): void {
           lines.push("");
         }
 
-        // Mock response
+        // outResults — response demos + output field tables
+        if (iface.outResults && iface.outResults.length > 0) {
+          lines.push("**响应结果**:", "");
+          for (let i = 0; i < iface.outResults.length; i++) {
+            const or = iface.outResults[i];
+            const label = or.outResultComponentInfo?.name || `结果 ${i + 1}`;
+            lines.push(`#### ${label}`);
+            if (or.outResultDemo?.trim()) {
+              lines.push("```json");
+              try {
+                lines.push(JSON.stringify(JSON.parse(or.outResultDemo), null, 2));
+              } catch {
+                lines.push(or.outResultDemo);
+              }
+              lines.push("```");
+            }
+            const items = or.outputResultInfo?.items ?? [];
+            if (items.length > 0) {
+              lines.push("| 字段名 | 类型 | 描述 |");
+              lines.push("|--------|------|------|");
+              renderOutputItems(items, lines);
+            }
+            lines.push("");
+          }
+        }
+
+        // mockReturnResultExample — formatted table
         if (iface.mockReturnResultExample && iface.mockReturnResultExample.length > 0) {
-          lines.push("**Mock 响应示例**:");
-          lines.push("```json");
-          lines.push(JSON.stringify(iface.mockReturnResultExample, null, 2));
-          lines.push("```");
+          lines.push("**Mock 响应字段**:", "");
+          lines.push("| 字段名 | 类型 | 描述 | 默认值 |");
+          lines.push("|--------|------|------|--------|");
+          formatMockFields(iface.mockReturnResultExample, lines);
           lines.push("");
         }
 
