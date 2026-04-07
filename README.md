@@ -89,6 +89,32 @@ PORT=8080 npm run serve
 
 健康检查：`http://<内网IP>:3000/health`
 
+## 调试
+
+使用 [MCP Inspector](https://github.com/modelcontextprotocol/inspector) 在浏览器中交互式调用工具，无需接入 AI 客户端。
+
+### stdio 模式（开发时推荐）
+
+直接用 `tsx` 启动，改完代码重新运行即可，无需先 build：
+
+```bash
+npx @modelcontextprotocol/inspector tsx src/index.ts
+```
+
+### HTTP 模式
+
+先启动开发服务，再连接 Inspector：
+
+```bash
+# 终端 1：启动开发服务（文件变更自动重启）
+npm run dev:serve
+
+# 终端 2：启动 Inspector
+npx @modelcontextprotocol/inspector --cli http://localhost:3000/mcp
+```
+
+启动后按提示访问本地地址，可直接调用工具并查看返回结果。
+
 ## 项目结构
 
 ```
