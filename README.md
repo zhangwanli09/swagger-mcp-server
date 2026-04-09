@@ -107,7 +107,11 @@ npx @modelcontextprotocol/inspector
 在 Inspector UI 中：
 1. Transport Type 选择 **Streamable HTTP**
 2. URL 填 `http://localhost:3000/mcp`
-3. 在 **Headers** 区域添加 `X-Swagger-Sources`，值为 JSON 数组字符串
+3. 在 **Headers** 区域添加 `X-Swagger-Sources`，值为 JSON 数组字符串，例如：
+   ```
+   Header Name:  X-Swagger-Sources
+   Header Value: ["http://your-server/...#/swaggerManage?uid=xxx"]
+   ```
 4. 点击 **Connect**
 
 > 如果一定要用 CLI（`--cli`）模式，必须指定 `--method`，例如 `--method tools/list`，否则会报 "Method is required"。
