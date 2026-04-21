@@ -1,6 +1,6 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { loadAllSources, loadSourceByName } from "../services/swagger-client.js";
+import { loadSourceByName } from "../services/swagger-client.js";
 import type { InterfaceInfo, MockResultField, OutputResultItem, Param } from "../types.js";
 
 const GetDetailInputSchema = z.object({
@@ -261,13 +261,23 @@ export function registerGetApiDetail(server: McpServer): void {
     },
     async (params: GetDetailInput) => {
       try {
-        let sources;
-        const single = await loadSourceByName(params.source);
-        if (single) {
-          sources = [single];
-        } else {
-          sources = await loadAllSources(false);
+        const { source, failures } = await loadSourceByName(params.source);
+        if (!source) {
+          const hint =
+            failures.length > 0
+              ? `当前 ${failures.length} 个源加载失败，目标可能在其中，请用 swagger_list_sources 查看失败详情。`
+              : "请用 swagger_list_sources 查看可用服务名。";
+          return {
+            content: [
+              {
+                type: "text" as const,
+                text: `Error: 未找到服务 "${params.source}"。${hint}`,
+              },
+            ],
+            isError: true,
+          };
         }
+        const sources = [source];
 
         let found: InterfaceInfo | undefined;
         let foundSourceName = "";

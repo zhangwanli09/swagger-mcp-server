@@ -1,13 +1,14 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { getCacheStatus, loadAllSources } from "../services/swagger-client.js";
+import { loadAllSources } from "../services/swagger-client.js";
 import { DEFAULT_CACHE_MINUTES } from "../constants.js";
 
 const ListSourcesOutput = z.object({
   sources: z.array(
     z.object({
-      name: z.string(),
+      name: z.string().optional(),
       loaded: z.boolean(),
+      url: z.string().optional(),
       projectPath: z.string().optional(),
       status: z.string().optional(),
       totalInterfaces: z.number().int().optional(),
@@ -15,6 +16,7 @@ const ListSourcesOutput = z.object({
       cacheValidMinutes: z.number().int().optional(),
       modules: z.array(z.string()).optional(),
       apiUrl: z.string().optional(),
+      error: z.string().optional(),
     })
   ),
 });
@@ -46,9 +48,7 @@ export function registerListSources(server: McpServer): void {
     },
     async () => {
       try {
-        // Load first so cache is populated before getCacheStatus() reads it
-        const sources = await loadAllSources(false);
-        const statuses = getCacheStatus();
+        const { sources, failures } = await loadAllSources(false);
 
         const structured: ListSourcesOutputType = { sources: [] };
         const lines: string[] = ["# 已配置的 Swagger 文档源\n"];
@@ -81,19 +81,18 @@ export function registerListSources(server: McpServer): void {
           lines.push("");
         }
 
-        // Add any sources that failed to load (show from status)
-        const loadedNames = new Set(sources.map((s) => s.name));
-        for (const st of statuses) {
-          if (!loadedNames.has(st.name)) {
-            structured.sources.push({
-              name: st.name,
-              loaded: false,
-              apiUrl: st.apiUrl,
-            });
-            lines.push(`## ${st.name} ⚠️ (未加载)`);
-            lines.push(`- **API URL**: ${st.apiUrl}`);
-            lines.push("");
-          }
+        for (const f of failures) {
+          structured.sources.push({
+            loaded: false,
+            url: f.url,
+            apiUrl: f.apiUrl,
+            error: f.error,
+          });
+          lines.push(`## ⚠️ 未加载的源`);
+          lines.push(`- **配置 URL**: ${f.url}`);
+          lines.push(`- **API URL**: ${f.apiUrl}`);
+          lines.push(`- **错误**: ${f.error}`);
+          lines.push("");
         }
 
         return {

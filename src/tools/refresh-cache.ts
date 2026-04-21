@@ -1,6 +1,10 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
-import { clearCache, loadAllSources, loadSourceByName } from "../services/swagger-client.js";
+import {
+  clearCache,
+  loadAllSources,
+  loadSourceByName,
+} from "../services/swagger-client.js";
 
 const RefreshInputSchema = z.object({
   source: z
@@ -19,6 +23,15 @@ const RefreshCacheOutput = z.object({
       fetchedAt: z.string().datetime(),
     })
   ),
+  failed: z
+    .array(
+      z.object({
+        url: z.string(),
+        apiUrl: z.string(),
+        error: z.string(),
+      })
+    )
+    .optional(),
 });
 
 type RefreshCacheOutputType = z.infer<typeof RefreshCacheOutput>;
@@ -49,13 +62,17 @@ export function registerRefreshCache(server: McpServer): void {
       try {
         if (params.source) {
           clearCache(params.source);
-          const src = await loadSourceByName(params.source);
+          const { source: src, failures } = await loadSourceByName(params.source);
           if (!src) {
+            const hint =
+              failures.length > 0
+                ? `当前 ${failures.length} 个源加载失败，目标可能在其中，请用 swagger_list_sources 查看失败详情。`
+                : "请用 swagger_list_sources 查看可用服务名。";
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: `Error: 未找到服务 "${params.source}"，请用 swagger_list_sources 查看可用服务名。`,
+                  text: `Error: 未找到服务 "${params.source}"。${hint}`,
                 },
               ],
               isError: true,
@@ -85,7 +102,7 @@ export function registerRefreshCache(server: McpServer): void {
           };
         } else {
           clearCache();
-          const sources = await loadAllSources(true);
+          const { sources, failures } = await loadAllSources(true);
           const structured: RefreshCacheOutputType = { refreshed: [] };
           const lines: string[] = ["✓ 已刷新全部服务缓存\n"];
           for (const src of sources) {
@@ -99,6 +116,13 @@ export function registerRefreshCache(server: McpServer): void {
               fetchedAt: src.fetchedAt.toISOString(),
             });
             lines.push(`- **${src.name}**: ${total} 个接口`);
+          }
+          if (failures.length > 0) {
+            structured.failed = failures;
+            lines.push("\n⚠️ 以下服务刷新失败:");
+            for (const f of failures) {
+              lines.push(`- **${f.url}**: ${f.error}`);
+            }
           }
           return {
             content: [{ type: "text" as const, text: lines.join("\n") }],

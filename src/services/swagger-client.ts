@@ -9,6 +9,17 @@ import { getCurrentSources } from "./source-context.js";
 // In-memory cache: sourceName / url -> CachedSource (URL keys are tenant-safe since URLs are globally unique)
 const cache = new Map<string, CachedSource>();
 
+export type SourceFailure = {
+  url: string;
+  apiUrl: string;
+  error: string;
+};
+
+export type LoadAllResult = {
+  sources: CachedSource[];
+  failures: SourceFailure[];
+};
+
 const NO_SOURCES_ERROR =
   'No swagger sources configured. Pass via SWAGGER_SOURCES env var (stdio mode, JSON array of URLs) or X-Swagger-Sources header (HTTP mode, JSON array of URLs).';
 
@@ -135,32 +146,39 @@ export async function getSource(
   return fresh;
 }
 
-export async function loadAllSources(forceRefresh = false): Promise<CachedSource[]> {
+export async function loadAllSources(forceRefresh = false): Promise<LoadAllResult> {
   const urls = loadConfig();
-  return Promise.all(urls.map((url) => getSource(url, DEFAULT_CACHE_MINUTES, forceRefresh)));
+  const results = await Promise.allSettled(
+    urls.map((url) => getSource(url, DEFAULT_CACHE_MINUTES, forceRefresh))
+  );
+
+  const sources: CachedSource[] = [];
+  const failures: SourceFailure[] = [];
+  for (let i = 0; i < results.length; i++) {
+    const url = urls[i];
+    const r = results[i];
+    if (r.status === "fulfilled") {
+      sources.push(r.value);
+    } else {
+      const error = r.reason instanceof Error ? r.reason.message : String(r.reason);
+      let apiUrl = url;
+      try {
+        apiUrl = parseWebUrl(url);
+      } catch {
+        // URL itself malformed — fall back to raw url string for display.
+      }
+      failures.push({ url, apiUrl, error });
+    }
+  }
+  return { sources, failures };
 }
 
 export async function loadSourceByName(
   name: string
-): Promise<CachedSource | undefined> {
-  const all = await loadAllSources(false);
-  return all.find((c) => c.name.toLowerCase() === name.toLowerCase());
-}
-
-export function getCacheStatus(): Array<{
-  name: string;
-  fetchedAt: Date | null;
-  apiUrl: string;
-}> {
-  const urls = loadConfig();
-  return urls.map((url) => {
-    const cached = cache.get(url);
-    return {
-      name: cached?.name ?? url,
-      fetchedAt: cached?.fetchedAt ?? null,
-      apiUrl: cached?.apiUrl ?? parseWebUrl(url),
-    };
-  });
+): Promise<{ source: CachedSource | undefined; failures: SourceFailure[] }> {
+  const { sources, failures } = await loadAllSources(false);
+  const source = sources.find((c) => c.name.toLowerCase() === name.toLowerCase());
+  return { source, failures };
 }
 
 export function clearCache(name?: string): void {

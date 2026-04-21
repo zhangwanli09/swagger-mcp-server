@@ -98,21 +98,25 @@ export function registerSearchApi(server: McpServer): void {
       try {
         let sources;
         if (params.source) {
-          const single = await loadSourceByName(params.source);
-          if (!single) {
+          const { source, failures } = await loadSourceByName(params.source);
+          if (!source) {
+            const hint =
+              failures.length > 0
+                ? `当前 ${failures.length} 个源加载失败，目标可能在其中，请用 swagger_list_sources 查看失败详情。`
+                : "请用 swagger_list_sources 查看可用服务名。";
             return {
               content: [
                 {
                   type: "text" as const,
-                  text: `Error: 未找到服务 "${params.source}"，请用 swagger_list_sources 查看可用服务名。`,
+                  text: `Error: 未找到服务 "${params.source}"。${hint}`,
                 },
               ],
               isError: true,
             };
           }
-          sources = [single];
+          sources = [source];
         } else {
-          sources = await loadAllSources(false);
+          ({ sources } = await loadAllSources(false));
         }
 
         const results: ApiMatch[] = [];
