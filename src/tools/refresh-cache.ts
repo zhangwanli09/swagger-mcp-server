@@ -55,7 +55,7 @@ export function registerRefreshCache(server: McpServer): void {
         readOnlyHint: false,
         destructiveHint: false,
         idempotentHint: true,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (params: RefreshInput) => {

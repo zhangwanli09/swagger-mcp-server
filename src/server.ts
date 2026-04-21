@@ -11,10 +11,40 @@ import { runWithSources } from "./services/source-context.js";
 
 const PORT = Number(process.env.PORT ?? 3000);
 
+const ALLOWED_ORIGINS = (process.env.MCP_ALLOWED_ORIGINS ?? "")
+  .split(",")
+  .map((s) => s.trim())
+  .filter(Boolean);
+const BEARER_TOKEN = process.env.MCP_BEARER_TOKEN?.trim() || "";
+
 const app = express();
 app.use(express.json());
 
 app.post("/mcp", async (req, res) => {
+  if (ALLOWED_ORIGINS.length > 0) {
+    const origin = req.header("origin");
+    if (origin && !ALLOWED_ORIGINS.includes(origin)) {
+      res.status(403).json({ error: `Origin "${origin}" is not allowed.` });
+      return;
+    }
+  }
+
+  if (BEARER_TOKEN) {
+    const auth = req.header("authorization") ?? "";
+    const expected = `Bearer ${BEARER_TOKEN}`;
+    if (auth !== expected) {
+      res.status(401).json({ error: "Missing or invalid Authorization bearer token." });
+      return;
+    }
+  }
+
+  const accept = req.header("accept") ?? "";
+  if (!accept.includes("application/json") || !accept.includes("text/event-stream")) {
+    console.error(
+      `[mcp] Accept header "${accept}" does not include required types (application/json, text/event-stream). Allowing for backward compatibility.`
+    );
+  }
+
   const headerVal = req.header("x-swagger-sources");
   if (!headerVal || !headerVal.trim()) {
     res.status(400).json({
@@ -45,8 +75,30 @@ app.post("/mcp", async (req, res) => {
     registerRefreshCache(server);
 
     const transport = new StreamableHTTPServerTransport({ sessionIdGenerator: undefined });
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+
+    const cleanup = async () => {
+      try {
+        await transport.close();
+      } catch {
+        // ignore
+      }
+      try {
+        await server.close();
+      } catch {
+        // ignore
+      }
+    };
+    res.on("close", () => {
+      void cleanup();
+    });
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      await cleanup();
+      throw err;
+    }
   });
 });
 

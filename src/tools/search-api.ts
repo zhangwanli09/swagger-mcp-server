@@ -91,7 +91,7 @@ export function registerSearchApi(server: McpServer): void {
         readOnlyHint: true,
         destructiveHint: false,
         idempotentHint: false,
-        openWorldHint: false,
+        openWorldHint: true,
       },
     },
     async (params: SearchInput) => {
