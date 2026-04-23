@@ -87,7 +87,18 @@ npx swagger-mcp-server --http --port 8080   # 自定义端口
 
 - **缓存有效期**：30 分钟固定 TTL，需强制刷新请调用 `swagger_refresh_cache`。
 - **健康检查**（HTTP 模式）：`GET http://<内网IP>:3000/health`
-- **端口**：默认 3000，可通过 `--port 8080` 参数或 `PORT=8080` 环境变量覆盖（CLI 参数优先）。
+- **端口**：默认 3000，可通过 `--port 8080` 参数或 `PORT=8080` 环境变量覆盖（CLI 参数优先）。值无效会直接退出并报错。
+
+### 安全相关环境变量（仅 HTTP 模式）
+
+| 变量 | 作用 | 默认 |
+|------|------|------|
+| `MCP_BIND_HOST` | 监听地址。设为 `127.0.0.1` 可限制为仅本机访问 | `0.0.0.0` |
+| `MCP_BEARER_TOKEN` | 要求请求头 `Authorization: Bearer <token>` | 未设 = 不校验 |
+| `MCP_ALLOWED_ORIGINS` | 逗号分隔的允许 Origin 白名单（防 DNS rebinding） | 未设 = 不校验 |
+
+- 设置了 `MCP_ALLOWED_ORIGINS` 后，缺失 `Origin` 头的请求会被拒绝（除非同时携带有效 Bearer token，用于服务端到服务端调用）。
+- 裸启动（`0.0.0.0` + 无鉴权）时启动日志会打印警告——生产部署建议至少配一项。
 
 ## 调试（MCP Inspector）
 
