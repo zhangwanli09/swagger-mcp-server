@@ -1,8 +1,10 @@
 #!/usr/bin/env node
+import { createRequire } from "node:module";
 import { startStdio } from "./stdio.js";
 import { startHttp } from "./http.js";
 
-const VERSION = "1.0.0";
+const require = createRequire(import.meta.url);
+const { version: VERSION } = require("../package.json") as { version: string };
 
 const HELP = `internal-swagger-mcp ${VERSION}
 
