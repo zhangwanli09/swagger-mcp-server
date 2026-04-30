@@ -15,15 +15,13 @@ Let AI agents query your internal Swagger platform's API docs via MCP.
 
 ## Connecting MCP clients
 
-Requires Node.js ≥ 18. Swagger sources are always supplied by the client — this server holds no configuration. Pass them as a JSON array string: via the `SWAGGER_SOURCES` env var in stdio mode, or via the `X-Swagger-Sources` header in HTTP mode.
+Requires Node.js ≥ 18. Swagger sources are always supplied by the client — this server holds no configuration. Pass them in stdio mode via the `SWAGGER_SOURCES` env var or [`--sources-file`](#sources-file), and in HTTP mode via the `X-Swagger-Sources` header per request. **Use project scope** for every client's MCP config so each repo pins its own sources and the config can be committed to git. In the snippets below, `<SOURCE>` looks like `http://your-server/...#/swaggerManage?uid=xxx`; if `swagger_list_sources` works inside the client, the integration is up.
 
 Start in HTTP mode (for deploying on a shared internal host):
 
 ```bash
 npx -y internal-swagger-mcp --http   # defaults to port 3000; override with --port or PORT
 ```
-
-In the snippets below, `<SOURCE>` looks like `http://your-server/...#/swaggerManage?uid=xxx`. **Project-level config is recommended** for every client (each project pins its own Swagger source and the config can be committed to git). If `swagger_list_sources` runs successfully inside the client, the integration is working.
 
 ### Claude Code
 
@@ -111,6 +109,55 @@ Remote (HTTP):
   }
 }
 ```
+
+### Sources file
+
+When the source list belongs to the project, pass `--sources-file <path>` instead of pasting the same JSON-as-string into every client's `env`. Use a path relative to the project root (e.g. `./swagger-sources.json`) — it resolves from `process.cwd()`, which is the project root under project-scoped configs in Claude Code, Cursor, opencode, etc. — so the MCP config can be committed and shared as-is.
+
+`swagger-sources.json` (each entry is a `<SOURCE>` URL as defined above):
+
+```json
+[
+  "<SOURCE_1>",
+  "<SOURCE_2>"
+]
+```
+
+Each client config then becomes a thin wrapper around the same command:
+
+Claude Code:
+
+```bash
+claude mcp add swagger --scope project -- npx -y internal-swagger-mcp --sources-file ./swagger-sources.json
+```
+
+opencode (`opencode.json`):
+
+```json
+{
+  "mcp": {
+    "swagger": {
+      "type": "local",
+      "command": ["npx", "-y", "internal-swagger-mcp", "--sources-file", "./swagger-sources.json"]
+    }
+  }
+}
+```
+
+Cursor (`.cursor/mcp.json`) — and other clients using the `mcpServers` shape:
+
+```json
+{
+  "mcpServers": {
+    "swagger": {
+      "command": "npx",
+      "args": ["-y", "internal-swagger-mcp", "--sources-file", "./swagger-sources.json"]
+    }
+  }
+}
+```
+
+The file is read once at startup; the source list is fixed for the server's lifetime (clients relaunch on config change anyway). When both `--sources-file` and `SWAGGER_SOURCES` are provided, the file wins. The flag is rejected in `--http` mode because HTTP sources are inherently per-request.
 
 ## HTTP deployment security
 

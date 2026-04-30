@@ -21,9 +21,15 @@ export type LoadAllResult = {
 };
 
 const NO_SOURCES_ERROR =
-  'No swagger sources configured. Pass via SWAGGER_SOURCES env var (stdio mode, JSON array of URLs) or X-Swagger-Sources header (HTTP mode, JSON array of URLs).';
+  'No swagger sources configured. Pass via --sources-file <path> (stdio mode, JSON file with array of URLs), SWAGGER_SOURCES env var (stdio mode, JSON array of URLs), or X-Swagger-Sources header (HTTP mode, JSON array of URLs).';
 
-function parseSourcesJson(raw: string, origin: string): string[] {
+let defaultSources: string[] | null = null;
+
+export function setDefaultSources(sources: string[]): void {
+  defaultSources = sources;
+}
+
+export function parseSourcesJson(raw: string, origin: string): string[] {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -35,12 +41,17 @@ function parseSourcesJson(raw: string, origin: string): string[] {
   if (!Array.isArray(parsed) || !parsed.every((u) => typeof u === "string")) {
     throw new Error(`${origin} must be a JSON array of URL strings.`);
   }
+  if (parsed.length === 0) {
+    throw new Error(`${origin} must contain at least one URL.`);
+  }
   return parsed;
 }
 
 function loadConfig(): string[] {
   const fromContext = getCurrentSources();
   if (fromContext && fromContext.length > 0) return fromContext;
+
+  if (defaultSources && defaultSources.length > 0) return defaultSources;
 
   const fromEnv = process.env.SWAGGER_SOURCES;
   if (fromEnv && fromEnv.trim().length > 0) {

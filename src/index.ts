@@ -11,24 +11,26 @@ const HELP = `internal-swagger-mcp ${VERSION}
 MCP server for querying internal Swagger API documentation.
 
 Usage:
-  internal-swagger-mcp                    Start in stdio mode (default, for MCP clients)
-  internal-swagger-mcp --http             Start HTTP server on port 3000
-  internal-swagger-mcp --http --port 8080 Start HTTP server on a custom port
+  internal-swagger-mcp                                    Start in stdio mode (default, for MCP clients)
+  internal-swagger-mcp --sources-file ./sources.json      Stdio mode reading sources from a project-local JSON file
+  internal-swagger-mcp --http                             Start HTTP server on port 3000
+  internal-swagger-mcp --http --port 8080                 Start HTTP server on a custom port
 
 Options:
-  --http           Use Streamable HTTP transport instead of stdio
-  --port <number>  HTTP port (default: 3000, or $PORT if set)
-  -h, --help       Show this help
-  -v, --version    Show version
+  --http                   Use Streamable HTTP transport instead of stdio
+  --port <number>          HTTP port (default: 3000, or $PORT if set)
+  --sources-file <path>    (stdio only) Path to a JSON file containing an array of Swagger Web UI URLs
+  -h, --help               Show this help
+  -v, --version            Show version
 
 Environment:
-  SWAGGER_SOURCES       (stdio)  JSON array of Swagger Web UI URLs
+  SWAGGER_SOURCES       (stdio)  JSON array of Swagger Web UI URLs (used when --sources-file is not set)
   PORT                  (http)   Override default HTTP port
   MCP_ALLOWED_ORIGINS   (http)   Comma-separated allowed Origin headers
   MCP_BEARER_TOKEN      (http)   Require "Authorization: Bearer <token>"
 `;
 
-function parseArgs(argv: string[]): { http: boolean; port: number } {
+function parseArgs(argv: string[]): { http: boolean; port: number; sourcesFile?: string } {
   const http = argv.includes("--http");
   const portIdx = argv.indexOf("--port");
   let portFromCli: number | undefined;
@@ -51,7 +53,37 @@ function parseArgs(argv: string[]): { http: boolean; port: number } {
     portFromEnv = n;
   }
   const port = portFromCli ?? portFromEnv ?? 3000;
-  return { http, port };
+
+  let sourcesFile: string | undefined;
+  for (let i = 0; i < argv.length; i++) {
+    const tok = argv[i];
+    if (tok === "--sources-file") {
+      const raw = argv[i + 1];
+      if (!raw || raw.startsWith("-")) {
+        console.error(`Invalid --sources-file value: ${raw ?? "(missing)"}`);
+        process.exit(1);
+      }
+      sourcesFile = raw;
+      break;
+    }
+    if (tok.startsWith("--sources-file=")) {
+      const raw = tok.slice("--sources-file=".length);
+      if (!raw) {
+        console.error("Invalid --sources-file value: (empty)");
+        process.exit(1);
+      }
+      sourcesFile = raw;
+      break;
+    }
+  }
+  if (sourcesFile && http) {
+    console.error(
+      "--sources-file is only valid in stdio mode. In HTTP mode, sources must be passed per-request via the X-Swagger-Sources header."
+    );
+    process.exit(1);
+  }
+
+  return { http, port, sourcesFile };
 }
 
 async function main(): Promise<void> {
@@ -66,11 +98,11 @@ async function main(): Promise<void> {
     return;
   }
 
-  const { http, port } = parseArgs(args);
+  const { http, port, sourcesFile } = parseArgs(args);
   if (http) {
     await startHttp({ port });
   } else {
-    await startStdio();
+    await startStdio({ sourcesFile });
   }
 }
 
