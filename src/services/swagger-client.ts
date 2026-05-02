@@ -1,3 +1,4 @@
+import { readFileSync } from "node:fs";
 import type {
   ApiResponse,
   ApiResponseData,
@@ -23,10 +24,10 @@ export type LoadAllResult = {
 const NO_SOURCES_ERROR =
   'No swagger sources configured. Pass via --sources-file <path> (stdio mode, JSON file with array of URLs), SWAGGER_SOURCES env var (stdio mode, JSON array of URLs), or X-Swagger-Sources header (HTTP mode, JSON array of URLs).';
 
-let defaultSources: string[] | null = null;
+let defaultSourcesFile: string | null = null;
 
-export function setDefaultSources(sources: string[]): void {
-  defaultSources = sources;
+export function setDefaultSourcesFile(absPath: string): void {
+  defaultSourcesFile = absPath;
 }
 
 export function parseSourcesJson(raw: string, origin: string): string[] {
@@ -51,7 +52,17 @@ function loadConfig(): string[] {
   const fromContext = getCurrentSources();
   if (fromContext && fromContext.length > 0) return fromContext;
 
-  if (defaultSources && defaultSources.length > 0) return defaultSources;
+  if (defaultSourcesFile) {
+    let raw: string;
+    try {
+      raw = readFileSync(defaultSourcesFile, "utf8");
+    } catch (err) {
+      throw new Error(
+        `Failed to read --sources-file at ${defaultSourcesFile}: ${err instanceof Error ? err.message : String(err)}`
+      );
+    }
+    return parseSourcesJson(raw, `--sources-file ${defaultSourcesFile}`);
+  }
 
   const fromEnv = process.env.SWAGGER_SOURCES;
   if (fromEnv && fromEnv.trim().length > 0) {
