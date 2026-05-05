@@ -60,7 +60,7 @@ export interface MockResultField {
 export interface InterfaceInfo {
   interfaceId: string;
   interfaceName: string;
-  description: string;
+  description?: string;
   fullPath: string;
   httpMethodName: string;
   httpProtocolName?: string;

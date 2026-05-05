@@ -61,7 +61,7 @@ const SearchApiOutput = z.object({
 type SearchApiOutputType = z.infer<typeof SearchApiOutput>;
 type ApiMatch = z.infer<typeof ApiMatchSchema>;
 
-function matchesKeyword(keyword: string, iface: InterfaceInfo, module: Module): boolean {
+export function matchesKeyword(keyword: string, iface: InterfaceInfo, module: Module): boolean {
   const kw = keyword.toLowerCase();
   return (
     iface.interfaceName.toLowerCase().includes(kw) ||

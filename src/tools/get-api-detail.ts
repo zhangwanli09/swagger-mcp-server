@@ -102,7 +102,7 @@ type GetApiDetailOutputType = z.infer<typeof GetApiDetailOutput>;
 
 // ── Helpers: normalization (pure) ───────────────────────────────────────────
 
-function resolveType(paramType: string | undefined, isList: boolean | undefined, typeMap: Map<string, string>): string {
+export function resolveType(paramType: string | undefined, isList: boolean | undefined, typeMap: Map<string, string>): string {
   if (!paramType && paramType !== "0") return "-";
   const name = typeMap.get(paramType) ?? paramType;
   return isList ? `${name}[]` : name;
@@ -112,7 +112,7 @@ function resolveType(paramType: string | undefined, isList: boolean | undefined,
 //   - 部分模块：0=选填, 1=必填(默认错误消息), 2=必填(自定义错误消息)
 //   - 部分模块：没有 0，用 1=选填, 2=必填
 // 因此单看数值无法判定，需要组合 resultMsg。只要 resultMsg 非空即视为必填（平台只在需要校验时才填写）。
-function isRequired(p: Param): "yes" | "no" | "unknown" {
+export function isRequired(p: Param): "yes" | "no" | "unknown" {
   const ct = p.checkType;
   const hasMsg = !!(p.resultMsg && p.resultMsg.trim());
   if (ct === 0) return "no";
@@ -127,7 +127,7 @@ const REQUIRED_CN: Record<ParamNode["required"], string> = {
   unknown: "?",
 };
 
-function collectParams(params: Param[] | undefined, typeMap: Map<string, string>): ParamNode[] {
+export function collectParams(params: Param[] | undefined, typeMap: Map<string, string>): ParamNode[] {
   if (!params || params.length === 0) return [];
   return params.map((p) => {
     const node: ParamNode = {
@@ -143,7 +143,7 @@ function collectParams(params: Param[] | undefined, typeMap: Map<string, string>
   });
 }
 
-function collectOutputFields(items: OutputResultItem[] | undefined): OutputFieldNode[] {
+export function collectOutputFields(items: OutputResultItem[] | undefined): OutputFieldNode[] {
   if (!items || items.length === 0) return [];
   return items.map((item) => {
     const typeName = item.dataType.split(".").pop() ?? item.dataType;
@@ -159,7 +159,7 @@ function collectOutputFields(items: OutputResultItem[] | undefined): OutputField
   });
 }
 
-function collectMockFields(fields: MockResultField[] | undefined): MockFieldNode[] {
+export function collectMockFields(fields: MockResultField[] | undefined): MockFieldNode[] {
   if (!fields || fields.length === 0) return [];
   return fields.map((f) => {
     const typeName = f.type.split(".").pop() ?? f.type;
@@ -176,7 +176,7 @@ function collectMockFields(fields: MockResultField[] | undefined): MockFieldNode
   });
 }
 
-function tryParseJson(raw: string | undefined): unknown {
+export function tryParseJson(raw: string | undefined): unknown {
   if (!raw || !raw.trim() || raw === "null") return undefined;
   try {
     return JSON.parse(raw);
